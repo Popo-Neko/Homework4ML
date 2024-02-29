@@ -1,0 +1,461 @@
+---
+title: "ECON 5181 Assignment 1"
+author: "Chen Zhongyu"
+date: "2024-02-26"
+output: html_document
+---
+
+## Subset selection and LASSO
+
+### 1. Simulate S = 5000 samples according to the DGP, each with a sample size n = 2000
+
+```{r}
+simulate_data <- function(p = 15, n = 2000, correlation = 0.3) {
+
+  cov_matrix <- matrix(correlation, nrow = p, ncol = p)
+  diag(cov_matrix) <- 1
+  
+  X <- MASS::mvrnorm(n, mu = rep(0, p), Sigma = cov_matrix)
+  
+  beta <- c(0.12, 0.16, 0.2, rep(0, p - 3))
+  
+  u <- rnorm(n)
+  
+  Y <- X %*% beta + u
+  
+  return(data.frame(Y, X))
+}
+
+data = simulate_data()
+data
+```
+
+### 2. Program a procedure for subset selection with 3 regressors
+
+```{r}
+library(leaps)
+library(foreach)
+library(doParallel) 
+
+perform_subset_selection <- function(data, max_features = 3) {
+  subset_selection_result <- regsubsets(Y ~ ., data = data, nvmax = max_features, method = "forward")
+  
+  result_summary <- summary(subset_selection_result)
+  
+  best_model_index <- which.max(result_summary$rsq)
+  
+  selected_variables <- data.frame(t(result_summary$outmat[best_model_index, ]))
+  
+  coefficients <- data.frame(t(coef(subset_selection_result, id = best_model_index)))
+  
+  for (i in names(coefficients)) {
+    selected_variables[[i]] <- coefficients[[i]]
+  }
+  
+    return(selected_variables)
+}
+
+num_simulations <- 5000
+
+results_list <- foreach(i = 1:num_simulations, .combine = "rbind") %dopar% {
+  set.seed(i)  
+  simulated_data <- simulate_data(n = 2000)
+  
+  result <- perform_subset_selection(simulated_data)
+  
+  return(result)
+}
+
+stopImplicitCluster()
+```
+
+### 3. Plot the distribution of the best subset estimator across all simulations. Report the mean and standard deviation. Is the estimator biased? What happens to the distribution if you increase sample size to n = 10000 or decrease it to n = 100?
+
+#### n = 5000
+
+```{r}
+results_list[] <- lapply(results_list, as.numeric)
+filtered_data <- results_list[complete.cases(results_list[, 1:3]), 1:3]
+filtered_data
+```
+
+```{r}
+mu <- round(mean(filtered_data$X1), digits = 2)
+sigma <- round(sd(filtered_data$X1), digits = 4)
+
+ggplot(filtered_data, aes(x = X1)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.2, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.2, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X1", x = "X1", y = "Frequency")
+
+mu <- round(mean(filtered_data$X2), digits = 2)
+sigma <- round(sd(filtered_data$X2), digits = 4)
+
+ggplot(filtered_data, aes(x = X2)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.25, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.25, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X2", x = "X2", y = "Frequency")
+
+mu <- round(mean(filtered_data$X3), digits = 2)
+sigma <- round(sd(filtered_data$X3), digits = 4)
+
+ggplot(filtered_data, aes(x = X3)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.27, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.27, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X3", x = "X3", y = "Frequency")
+```
+
+#### n=10000
+
+```{r}
+num_simulations <- 10000
+
+results_list <- foreach(i = 1:num_simulations, .combine = "rbind") %dopar% {
+  set.seed(i)  
+  simulated_data <- simulate_data(n = 2000)
+  
+  result <- perform_subset_selection(simulated_data)
+  
+  return(result)
+}
+
+stopImplicitCluster()
+
+results_list[] <- lapply(results_list, as.numeric)
+filtered_data <- results_list[complete.cases(results_list[, 1:3]), 1:3]
+filtered_data
+```
+
+```{r}
+mu <- round(mean(filtered_data$X1), digits = 2)
+sigma <- round(sd(filtered_data$X1), digits = 4)
+
+ggplot(filtered_data, aes(x = X1)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.2, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.2, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X1", x = "X1", y = "Frequency")
+
+mu <- round(mean(filtered_data$X2), digits = 2)
+sigma <- round(sd(filtered_data$X2), digits = 4)
+
+ggplot(filtered_data, aes(x = X2)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.25, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.25, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X2", x = "X2", y = "Frequency")
+
+mu <- round(mean(filtered_data$X3), digits = 2)
+sigma <- round(sd(filtered_data$X3), digits = 4)
+
+ggplot(filtered_data, aes(x = X3)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.27, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.27, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X3", x = "X3", y = "Frequency")
+```
+
+#### n=100
+
+```{r}
+num_simulations <- 100
+
+results_list <- foreach(i = 1:num_simulations, .combine = "rbind") %dopar% {
+  set.seed(i)  
+  simulated_data <- simulate_data(n = 2000)
+  
+  result <- perform_subset_selection(simulated_data)
+  
+  return(result)
+}
+
+stopImplicitCluster()
+
+results_list[] <- lapply(results_list, as.numeric)
+filtered_data <- results_list[complete.cases(results_list[, 1:3]), 1:3]
+filtered_data
+```
+
+```{r}
+mu <- round(mean(filtered_data$X1), digits = 2)
+sigma <- round(sd(filtered_data$X1), digits = 4)
+
+ggplot(filtered_data, aes(x = X1)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.2, y = 9, label = paste("mean:", mu)) +
+  annotate("text", x = 0.2, y = 8, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X1", x = "X1", y = "Frequency")
+
+mu <- round(mean(filtered_data$X2), digits = 2)
+sigma <- round(sd(filtered_data$X2), digits = 4)
+
+ggplot(filtered_data, aes(x = X2)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.25, y = 9, label = paste("mean:", mu)) +
+  annotate("text", x = 0.25, y = 8, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X2", x = "X2", y = "Frequency")
+
+mu <- round(mean(filtered_data$X3), digits = 2)
+sigma <- round(sd(filtered_data$X3), digits = 4)
+
+ggplot(filtered_data, aes(x = X3)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.27, y = 9, label = paste("mean:", mu)) +
+  annotate("text", x = 0.27, y = 8, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X3", x = "X3", y = "Frequency")
+```
+
+It seems that when n=10000 and n=100, the mean and standard deviation have no significant change.
+
+The reason could be that even n=100 is already big enough for randomness.
+
+### 4. Report the probability that a relevant regressor is missed, and the probability that an irrelevant regressor is included.
+
+If we use frequency to calculate the probability
+
+we have
+
+| Number of Simulation | Relevant Missed Frequency | Probability |
+|----------------------|---------------------------|-------------|
+| 100                  | 2                         | 2%          |
+| 5000                 | 37                        | 0.74%       |
+| 10000                | 76                        | 0.76%       |
+
+Since I use forward method and set max regressors as 3, all simulation results have just 3 regressors. So here two probability is the same.
+
+### 5. Program the LASSO estimator for any given λ, using cyclic coordinate descent.
+
+```{r}
+library(glmnet)
+model <- glmnet(data[-1], data$Y, family = "gaussian")
+summary(model)
+```
+
+### 6. Report estimates of LASSO for a grid of λ’s.
+
+```{r}
+sigma <- sd(data$Y)
+s <- 3
+p <- 15
+n <- 2000
+lambda <- 2*sigma*sqrt(s*log(p)/n)
+lambda
+log(lambda)
+```
+
+```{r}
+lasso_path <- glmnet(data[-1], data$Y, family = "gaussian")
+plot(lasso_path, xvar = "lambda", label = TRUE)
+```
+
+From this plot we see that when log(lambda) falls between -3 to -4, all other variants' coefficients diminish to zero.
+
+### 7. For each simulation, pick a λ that selects exactly 3 regressors. Compare the results with those of subset selection and comment.
+
+```{r}
+num_simulations <- 5000
+
+perform_lasso_reg <- function(dat) {
+  X <- as.matrix(dat[-1])
+  Y <- dat$Y
+  cv_lasso_model <- cv.glmnet(X, Y, alpha = 1)
+  
+  # 获取所有 lambda 对应的 MSE
+  all_mse <- cv_lasso_model$cvm
+  
+  # 从小到大排序 MSE，并获取对应的 lambda 索引
+  sorted_mse_index <- order(all_mse)
+  
+  # 逐个检查 lambda 是否满足条件，选择第一个满足的 lambda
+  best_lambda <- NULL
+  for (index in sorted_mse_index) {
+    lambda_candidate <- cv_lasso_model$lambda[index]
+    final_lasso_model <- glmnet(X, Y, alpha = 1, lambda = lambda_candidate)
+    nonzero_coefficients <- sum(coef(final_lasso_model) != 0)
+    
+    if (nonzero_coefficients == 4) {
+      best_lambda <- lambda_candidate
+      break
+    }
+  }
+  
+  # 如果找不到满足条件的 lambda，则返回 NULL 或其他指示值
+  if (is.null(best_lambda)) {
+    print("找不到满足条件的 lambda")
+    return(NULL)
+  }
+  
+  # 提取最终模型的系数
+  final_lasso_model <- glmnet(X, Y, alpha = 1, lambda = best_lambda)
+  cof <- coef(final_lasso_model)
+  cof <- as.data.frame(t(as.matrix(cof)))
+  
+  return(cof)
+}
+
+lasso_results_list <- foreach(i = 1:num_simulations, .combine = "rbind") %dopar% {
+  set.seed(i)  
+  simulated_data <- simulate_data(n = 2000)
+  
+  result <- perform_subset_selection(simulated_data)
+  
+  return(result)
+}
+
+stopImplicitCluster()
+```
+
+```{r}
+lasso_results_list[] <- lapply(lasso_results_list, as.numeric)
+filtered_data <- lasso_results_list[complete.cases(lasso_results_list[, 1:3]), 1:3]
+filtered_data
+```
+
+```{r}
+mu <- round(mean(filtered_data$X1), digits = 2)
+sigma <- round(sd(filtered_data$X1), digits = 4)
+
+ggplot(filtered_data, aes(x = X1)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.2, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.2, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X1", x = "X1", y = "Frequency")
+
+mu <- round(mean(filtered_data$X2), digits = 2)
+sigma <- round(sd(filtered_data$X2), digits = 4)
+
+ggplot(filtered_data, aes(x = X2)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.25, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.25, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X2", x = "X2", y = "Frequency")
+
+mu <- round(mean(filtered_data$X3), digits = 2)
+sigma <- round(sd(filtered_data$X3), digits = 4)
+
+ggplot(filtered_data, aes(x = X3)) +
+  geom_histogram(binwidth = 0.005) +
+  annotate("text", x = 0.27, y = 400, label = paste("mean:", mu)) +
+  annotate("text", x = 0.27, y = 300, label = paste("sd:", sigma)) +
+  labs(title = "Distribution of X3", x = "X3", y = "Frequency")
+```
+
+Since I use the same randonm seed(seed(i) for the No. i simulation ). It turns out that almost the same results, which means LASSO could reach very similar results like Stepwise Forward Selection.
+
+## Predicting housing value
+
+```{r}
+homes <- read.csv("C:/Users/white/Desktop/MscECON/ECON5181/homes2004/homes2004.csv")
+
+# conditional vs marginal value
+
+
+par(mfrow=c(1,2)) # 1 row, 2 columns of plots 
+
+hist(homes$VALUE, col="grey", xlab="home value", main="")
+
+plot(VALUE ~ factor(BATHS), 
+    col=rainbow(8), data=homes[homes$BATHS<8,],
+    xlab="number of bathrooms", ylab="home value")
+
+
+# some quick plots.  Do more to build your intuition!
+homes$STATE <- factor(homes$STATE)
+plot(VALUE ~ STATE, data=homes, 
+	col=rainbow(nlevels(homes$STATE)), 
+	ylim=c(0,10^6), cex.axis=.65)
+```
+
+### 1. Plot the relationship between home value and some variable of your interest, tell a brief story in a few sentences.
+
+In my view, I would like to divide the value of a house into external one and internal ones. External one could be state(which is correlated to the tax rate and law) and community(which determines public safety).
+
+```{r}
+plot(VALUE ~ factor(HOWN), col=rainbow(2),data=homes[complete.cases(homes$VALUE, homes$HOWN),],
+    xlab="Rating of neighborhood as place to live", ylab="home value")
+```
+
+And internal ones are the numbers of bedrooms and bathrooms which measures the house area.
+
+```{r}
+plot(VALUE ~ factor(BEDRMS), 
+    col=rainbow(8), data=homes[homes$BEDRMS<8,],
+    xlab="number of badrooms", ylab="home value")
+```
+
+And the land price is a very direct factor that influences the price
+
+```{r}
+plot(VALUE ~ LPRICE, data=homes[homes$LPRICE,],
+    xlab="Purchase price of unit and land", ylab="home value")
+```
+
+### 2. Fit a linear regression model to predict log value using all variables but mortgage. Report the $R^{2}$
+
+```{r}
+## code hints 
+
+## OLS regression
+# regress log(VALUE) on everything except AMMORT and LPRICE 
+pricey <- glm(log(VALUE) ~ .-AMMORT-LPRICE, data=homes)
+# you can use the `-AMMORT' type syntax to drop variables
+
+rsquared <- 1 - pricey$deviance / pricey$null.deviance
+rsquared
+```
+
+### 3. Fit the same model using LASSO and ridge. Plot the regularization path
+
+```{r}
+library(dplyr)
+homes <- mutate_if(homes, is.character, as.factor)
+homes
+```
+
+```{r}
+numeric_columns <- homes[sapply(homes, is.numeric)]
+value_col <- homes["VALUE"]
+numeric_columns <- df[, -10]
+numeric_columns <- data.frame(scale(numeric_columns))
+numeric_columns
+dummy_variables <- model.matrix(~ . - 1, data = homes)
+df <- cbind(value_col, numeric_columns, dummy_variables)
+df
+```
+
+```{r}
+df1 <- df[, !(names(df) %in% c("AMMORT", "LPRICE"))]
+lasso_predict <- glmnet(df1[-1], df1$VALUE, alpha = 1)
+plot(lasso_predict, xvar = "lambda", label = TRUE)
+```
+
+```{r}
+ridge_predict <- glmnet(df1[-1], df1$VALUE, alpha = 0)
+plot(ridge_predict, xvar = "lambda", label = TRUE)
+```
+
+To treat dummy and numeric variables, we need to set N-1 dummy variables(one-hot code) and since for these dummies, they are 0 and 1. If our numeric variables are too large like greater than 1e2. It will be appropriate to do standardization in case of huge differential on estimators.
+
+### 4. Plot the coefficient on Number of Bedrooms estimated from OLS, LASSO, and ridge on the same graph, with $\lambda$ on the x-axis. Compare the magnitude of the coefficients across these models as $\lambda$ is varied and comment.
+
+```{r}
+ols_predict <- glm(VALUE ~ . , data = df1, family = "gaussian")
+coefficients(ols_predict)["BEDRMS"]
+```
+
+I try hard but it seems difficult to extract the data that I want from reg result in R.
+
+[![SadSadSad](https://cloud.cyber-angle.com/s/bN56NkQzQ5HtkPZ/download?path=&files=)](https://cloud.cyber-angle.com/s/bN56NkQzQ5HtkPZ)
+
+First, the coefficient of LASSO is the biggest, then ridge, the last OLS.
+
+Second, in LASSO, other variables are not chosen.
+
+Third, the coefficient in OLS of BEDRMS is so small that is about 1e-11(extremely small!)
+
+When the features are in huge amount and the sample size is large, it seems difficult for OLS to find the true key factor that matters.
+
+It turns out that a penalized regression overcome this kind of problem.
